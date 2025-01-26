@@ -1,4 +1,19 @@
-# Corec - A Context-Aware Recommender System Framework
+<div align="center">
+  <h1>Corec</h1>
+</div>
+
+<p align="center">
+  <!-- Python -->
+  <a href="https://www.python.org"><img src="https://badges.aleen42.com/src/python.svg" alt="Python"></a>
+  <!-- Version -->
+  <a href="https://pypi.org/project/corec/"><img src="https://img.shields.io/pypi/v/corec?color=light-green" alt="PyPI version"></a>
+  <a href="https://amenra.github.io/ranx"><img src="https://img.shields.io/badge/docs-passing-<COLOR>.svg" alt="Documentation Status"></a>
+  <!-- Ruff -->
+  <a href="https://github.com/astral-sh/ruff"><img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
+  <!-- License -->
+  <a href="https://lbesson.mit-license.org/"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+</p>
+
 
 Corec is a flexible and configurable framework designed for context-aware recommenders. It consists of two independent modules: one for generating recommendations and the other for evaluating recommendation metrics.
 
