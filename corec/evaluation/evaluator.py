@@ -386,7 +386,7 @@ class Evaluator(BaseModel):
             `fuse_output_path`: Path to the CSV file where metrics for fused runs will be saved.
             `metrics`: List of metrics to compute.
             `cutoffs`: List of cutoffs to consider when calculating the metrics.
-        
+
         Raises:
             `RuntimeError`: If Qrels were not previously computed.
         """
