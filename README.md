@@ -10,6 +10,8 @@
   <a href="https://amenra.github.io/ranx"><img src="https://img.shields.io/badge/docs-passing-<COLOR>.svg" alt="Documentation Status"></a>
   <!-- Ruff -->
   <a href="https://github.com/astral-sh/ruff"><img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
+  <!-- Pydantic -->
+  <a href="https://docs.pydantic.dev/latest/contributing/#badges"><img src="https://camo.githubusercontent.com/1ec3b5f774c66556456b4b855a73c1706f5454fa0ac3d2e4bcdabda9153b6b45/68747470733a2f2f696d672e736869656c64732e696f2f656e64706f696e743f75726c3d68747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f707964616e7469632f707964616e7469632f6d61696e2f646f63732f62616467652f76322e6a736f6e" alt="Pydantic v2" data-canonical-src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/pydantic/pydantic/main/docs/badge/v2.json" style="max-width: 100%;"></a>
   <!-- License -->
   <a href="https://lbesson.mit-license.org/"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
