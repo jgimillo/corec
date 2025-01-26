@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, FilePath, NonNegativeInt
 
 class BaseRec(BaseModel):
     """Base class for the `corec` recommender module."""
-
+    
     train_path: Optional[FilePath] = Field(
         ...,
         description="Path to the training data.",
