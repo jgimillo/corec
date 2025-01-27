@@ -1,15 +1,15 @@
+from typing import List, Optional
+
 import numpy as np
 import pandas as pd
-
 from pydantic import (
     BaseModel,
-    FilePath,
     Field,
+    FilePath,
     NonNegativeInt,
     PrivateAttr,
     validate_arguments,
 )
-from typing import List, Optional
 
 
 class PostFilter(BaseModel):

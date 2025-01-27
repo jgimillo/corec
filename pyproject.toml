@@ -23,3 +23,8 @@ dependencies = ["pydantic==2.10.6"]
 [project.optional-dependencies]
 recommender = []
 evaluator = ["ranx==0.3.20"]
+
+[tool.ruff]
+select = ["I", "E", "F", "W"]
+fix = true
+ignore = ["E501"]

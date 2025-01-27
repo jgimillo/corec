@@ -11,7 +11,7 @@ from pydantic import (
     validate_arguments,
 )
 
-from .metric_generator import MetricGenerator, FuseRun
+from .metric_generator import FuseRun, MetricGenerator
 from .qrels_generator import QrelsGenerator
 from .run_generator import RunGenerator
 
