@@ -47,9 +47,8 @@ class QrelsGenerator(BaseModel):
         self._test_df = pd.read_csv(
             self.test_path, sep=self.data_sep, compression=self.data_compression
         )
-        self._test_df.iloc[:, self.item_idx] = self._test_df.iloc[
-            :, self.item_idx
-        ].astype(str)
+        item_col_name = self._test_df.columns[self.item_idx]
+        self._test_df[item_col_name] = self._test_df[item_col_name].astype(str)
 
     class Config:
         extra = "forbid"

@@ -11,8 +11,7 @@ from pydantic import (
     validate_arguments,
 )
 
-from corec.utils import context_satisfaction
-
+from ....utils import context_satisfaction
 from .heuristic_rec import HeuristicRec
 
 

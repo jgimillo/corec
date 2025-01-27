@@ -147,6 +147,7 @@ class Evaluator(BaseModel):
             train_path=self.train_path,
             valid_path=self.valid_path,
             context_idxs=self.dataset_ctx_idxs,
+            dataset_item_idx=self.dataset_item_idx,
             dataset_sep=self.dataset_sep,
             dataset_compression=self.dataset_compression,
             preds_user_idx=self.preds_user_idx,

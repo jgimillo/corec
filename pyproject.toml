@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "corec"
-version = "0.1.1"
-description = "A context-aware recommender system framework"
+version = "1.0.1"
+description = "A Context-Aware Recommendation Framework for Python"
 authors = [
     {name = "Jaime Gimillo", email = "jaimegimillo@gmail.com"}
 ]
@@ -17,8 +17,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.6,<4.0"
-dependencies = ["pydantic==2.10.6"]
+requires-python = ">=3.8,<3.9"
+dependencies = [
+    "pydantic==2.10.6",
+    "protobuf==3.20.*",
+]
 
 [project.optional-dependencies]
 recommender = []

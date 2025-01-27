@@ -44,6 +44,14 @@ class RunGenerator(BaseModel):
         default=None,
         description="Path to the validation data, used during the post-filtering.",
     )
+    dataset_user_idx: NonNegativeInt = Field(
+        default=0,
+        description="Index for the user id column in the dataset.",
+    )
+    dataset_item_idx: NonNegativeInt = Field(
+        default=1,
+        description="Index for the item id column in the dataset.",
+    )
     dataset_sep: str = Field(
         default="\t",
         description="Separator used in the dataset files.",
@@ -89,23 +97,20 @@ class RunGenerator(BaseModel):
         test_df = pd.read_csv(
             self.test_path, sep=self.dataset_sep, compression=self.dataset_compression
         )
-        test_df.iloc[:, self.preds_item_idx] = test_df.iloc[
-            :, self.preds_item_idx
-        ].astype(str)
+        item_col_name = test_df.columns[self.dataset_item_idx]
+        test_df[item_col_name] = test_df[item_col_name].astype(str)
 
         self._item_context_list = [
             [
-                row.iloc[self.preds_item_idx],
+                row.iloc[self.dataset_item_idx],
                 tuple(row.iloc[self.context_idxs]),
                 test_df.loc[
-                    test_df.iloc[:, self.preds_item_idx]
-                    == row.iloc[self.preds_item_idx],
-                    test_df.columns[self.preds_user_idx],
+                    test_df.iloc[:, self.dataset_item_idx]
+                    == row.iloc[self.dataset_item_idx],
+                    test_df.columns[self.dataset_user_idx],
                 ].unique(),
             ]
-            for _, row in test_df.drop_duplicates(
-                subset=test_df.columns[self.preds_item_idx]
-            ).iterrows()
+            for _, row in test_df.drop_duplicates(subset=item_col_name).iterrows()
         ]
 
     @staticmethod
@@ -159,9 +164,8 @@ class RunGenerator(BaseModel):
         preds_df = pd.read_csv(
             predictions_path, sep=self.dataset_sep, compression=self.preds_compression
         )
-        preds_df.iloc[:, self.preds_item_idx] = preds_df.iloc[
-            :, self.preds_item_idx
-        ].astype(str)
+        item_col_name = preds_df.columns[self.preds_item_idx]
+        preds_df[item_col_name] = preds_df[item_col_name].astype(str)
 
         chunks = chunkify_df(preds_df, self.num_processors)
         group_keys = [
@@ -193,11 +197,10 @@ class RunGenerator(BaseModel):
         partial_dict = {}
 
         for item_id, context, user_ids in chunk:
-            preds_df = pf.postfilter(context=context, user_ids=user_ids, K=K)
+            preds_df = pf.postfilter(context=context, user_ids=user_ids, K=K).copy()
             user_preds_col_name = preds_df.columns[self.preds_user_idx]
-            preds_df.iloc[:, self.preds_item_idx] = preds_df.iloc[
-                :, self.preds_item_idx
-            ].astype(str)
+            item_preds_col_name = preds_df.columns[self.preds_item_idx]
+            preds_df[item_preds_col_name] = preds_df[item_preds_col_name].astype(str)
 
             partial_dict.update(
                 {

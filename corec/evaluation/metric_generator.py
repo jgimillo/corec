@@ -15,8 +15,7 @@ from pydantic import (
 )
 from ranx import Qrels, Run, evaluate
 
-from corec.utils import context_satisfaction
-
+from ..utils import context_satisfaction
 from .constants import (
     CUSTOM_METRICS,
     CUTOFF_RANX_METRICS,
