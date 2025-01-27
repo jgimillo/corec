@@ -62,7 +62,7 @@ elliot_rec = ElliotRec(
     elliot_work_dir="elliot_work_dir",
 )
 
-# Setup the model parameters according to the official docs from [Elliot](https://elliot.readthedocs.io/en/latest/guide/recommenders.html)
+# Setup the model parameters according to the official docs from Elliot
 models_config = {
     "ItemKNN": {
         "implementation": "classic",
