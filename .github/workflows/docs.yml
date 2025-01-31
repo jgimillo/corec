@@ -19,4 +19,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           CONFIG_FILE: docs/mkdocs.yml
-
