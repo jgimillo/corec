@@ -12,9 +12,19 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install dependencies
         run: pip install mkdocs-material
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
       - name: Deploy to GitHub Pages
-        run: mkdocs gh-deploy --force --config-file docs/mkdocs.yml
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          mkdocs gh-deploy --force --remote-branch gh-pages --remote-name origin --config-file docs/mkdocs.yml
