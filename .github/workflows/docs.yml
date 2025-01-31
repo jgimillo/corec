@@ -1,45 +1,20 @@
-name: Deploy MkDocs
-
+name: Build MkDocs
 on:
   push:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
-  deploy:
+  build:
+    name: Deploy docs
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout main
+        uses: actions/checkout@v2
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          pip install mkdocs mkdocs-material
-
-      - name: Configure Git
+      - name: Deploy docs
+        uses: mhausenblas/mkdocs-deploy-gh-pages@master
         env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/jgimillo/corec.git
-          git fetch --unshallow || true
-          git checkout gh-pages || git checkout --orphan gh-pages
-          git reset --hard
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          CONFIG_FILE: docs/mkdocs.yml
 
-      - name: Deploy to GitHub Pages
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          mkdocs gh-deploy --force --config-file docs/mkdocs.yml
