@@ -3,10 +3,10 @@ name: Deploy MkDocs
 on:
   push:
     branches:
-      - main  # Solo se ejecuta cuando hay cambios en main
+      - main
 
 permissions:
-  contents: write  # Permite a Actions hacer push a gh-pages
+  contents: write
 
 jobs:
   deploy:
@@ -34,7 +34,7 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/jgimillo/corec.git
-          git fetch --unshallow || true  # Evita errores en repositorios shallow
+          git fetch --unshallow || true
           git checkout gh-pages || git checkout --orphan gh-pages
           git reset --hard
 
@@ -42,4 +42,4 @@ jobs:
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          mkdocs gh-deploy --force --remote-branch gh-pages --remote-name origin --config-file docs/mkdocs.yml
+          mkdocs gh-deploy --force --config-file docs/mkdocs.yml
