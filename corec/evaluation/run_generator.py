@@ -125,7 +125,7 @@ class RunGenerator(BaseModel):
 
         return run_dict
 
-    def _store_run(self, run_dict: dict, output_path: str = None):
+    def _store_run(self, run_dict: dict, output_path: Optional[str] = None):
         """
         Optionally saves the Run dictionary to a JSON file and sanitizes
         it before returning the loaded Run.
@@ -135,19 +135,24 @@ class RunGenerator(BaseModel):
         run_dict = self._sanitize_inf_from_run_dict(run_dict)
         return Run(run_dict)
 
-    def _contextual_value_func(self, group: DataFrameGroupBy):
+    def _contextual_value_func(
+        self, group: DataFrameGroupBy, K: Optional[PositiveInt] = None
+    ):
         """
         Transforms a grouped DataFrame into a dictionary where the key is
         the item id and the value is the score.
         """
         return {
             row.iloc[self.preds_item_idx]: float(row.iloc[self.preds_score_idx])
-            for _, row in group.iterrows()
+            for _, row in (group if K is None else group.head(K)).iterrows()
         }
 
     @validate_arguments
     def compute_contextual_run(
-        self, predictions_path: FilePath, output_path: str = None
+        self,
+        predictions_path: FilePath,
+        K: Optional[PositiveInt] = None,
+        output_path: Optional[str] = None,
     ):
         """
         Constructs a Run by retrieving, for each user-test item pair from the
@@ -156,6 +161,7 @@ class RunGenerator(BaseModel):
 
         Args:
             `predictions_path`: Path to the file containing the predictions.
+            `K`: Number of top predictions to retain per user.  If not specified, all predictions will be considered.
             `output_path`: Path to save the Run dict as a JSON file. If not specified, the Run is not saved.
 
         Returns:
@@ -175,7 +181,7 @@ class RunGenerator(BaseModel):
         process_chunk = partial(
             group_to_dict,
             group_keys=group_keys,
-            value_func=self._contextual_value_func,
+            value_func=partial(self._contextual_value_func, K=K),
         )
 
         with mp.Pool(processes=self.num_processors) as pool:
@@ -189,7 +195,9 @@ class RunGenerator(BaseModel):
 
         return self._store_run(run_dict, output_path=output_path)
 
-    def _process_item_context(self, pf: PostFilter, chunk: list, K: int):
+    def _process_item_context(
+        self, pf: PostFilter, chunk: list, K: Optional[PositiveInt] = None
+    ):
         """
         Processes a chunk of item-contexts from the test data and generates a
         dictionary of user-item predictions with the corresponding scores.
@@ -220,8 +228,8 @@ class RunGenerator(BaseModel):
         self,
         predictions_path: FilePath,
         context_postfilter: bool = False,
-        K: PositiveInt = None,
-        output_path: str = None,
+        K: Optional[PositiveInt] = None,
+        output_path: Optional[str] = None,
     ):
         """
         Constructs a Run by processing non-contextual predictions and optionally applying post-filtering.
@@ -232,7 +240,7 @@ class RunGenerator(BaseModel):
         Args:
             `predictions_path`: Path to the predictions file.
             `context_postfilter`: Boolean flag to apply context post-filtering.
-            `K`: Number of top predictions to retain per user during post-filtering.
+            `K`: Number of top predictions to retain per user during post-filtering. If not specified, all predictions will be considered.
             `output_path`: Path to save the Run dictionary as a JSON file. If not specified, the Run is not saved.
 
         Raises:
@@ -274,7 +282,7 @@ class RunGenerator(BaseModel):
         runs: List[Run],
         norm: str = "min-max",
         method: str = "wsum",
-        output_path: str = None,
+        output_path: Optional[str] = None,
     ):
         """
         Computes a fused Run applying the specified norm and method.

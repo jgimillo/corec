@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Callable, Dict, List
 
 from pandas import DataFrame
+from pydantic import PositiveInt
 
 
 def save_json(data: Dict, output_path: str):
@@ -29,13 +30,13 @@ def group_to_dict(df: DataFrame, group_keys: List[str], value_func: Callable):
     return grouped_dict
 
 
-def chunkify_list(lst: list, n: int):
+def chunkify_list(lst: list, n: PositiveInt):
     """Splits a list into n nearly equal-sized chunks."""
     k, m = divmod(len(lst), n)
     return [lst[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
 
 
-def chunkify_df(df: DataFrame, n: int):
+def chunkify_df(df: DataFrame, n: PositiveInt):
     """Splits a DataFrame into n nearly equal-sized chunks."""
     k, m = divmod(len(df), n)
     return [df.iloc[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]

@@ -6,7 +6,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import Field, PositiveInt, PrivateAttr, validate_arguments
+from pydantic import Field, NonNegativeInt, PositiveInt, PrivateAttr, validate_arguments
 
 from ..context_rec import ContextRec
 
@@ -145,7 +145,12 @@ class HeuristicRec(ContextRec, ABC):
 
         self._logger.info("Recommendation process completed")
 
-    def _process_chunk(self, chunk_id, test_matrix, K):
+    def _process_chunk(
+        self,
+        chunk_id: NonNegativeInt,
+        test_matrix: np.ndarray,
+        K: Optional[PositiveInt],
+    ):
         self._logger.info(f"Processing chunk {chunk_id}...")
 
         if (chunk_id + 1) * self.chunk_size < test_matrix.shape[0]:

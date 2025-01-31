@@ -54,7 +54,9 @@ class QrelsGenerator(BaseModel):
         extra = "forbid"
 
     @validate_arguments
-    def compute_qrels(self, rating_thr: NonNegativeInt, output_path: str = None):
+    def compute_qrels(
+        self, rating_thr: NonNegativeInt, output_path: Optional[str] = None
+    ):
         """
         Computes Qrels from the test data and optionally saves the result as a JSON file.
 

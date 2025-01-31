@@ -7,6 +7,7 @@ from pydantic import (
     Field,
     FilePath,
     NonNegativeInt,
+    PositiveInt,
     PrivateAttr,
     validate_arguments,
 )
@@ -92,7 +93,12 @@ class PostFilter(BaseModel):
         }
 
     @validate_arguments
-    def postfilter(self, context: tuple = None, user_ids: list = None, K: int = None):
+    def postfilter(
+        self,
+        context: Optional[tuple] = None,
+        user_ids: Optional[list] = None,
+        K: Optional[PositiveInt] = None,
+    ):
         """
         Applies post-filtering to the predictions based on context or user IDs
         (or both), and an optional top-K cutoff.

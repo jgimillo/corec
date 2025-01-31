@@ -221,7 +221,12 @@ class Evaluator(BaseModel):
         )
 
     @validate_arguments
-    def compute_contextual_run(self, ctx_model_name: str, run_name: str = None):
+    def compute_contextual_run(
+        self,
+        ctx_model_name: str,
+        run_name: Optional[str] = None,
+        K: Optional[PositiveInt] = None,
+    ):
         """
         Generates the Run for the specified context-aware model and, if `runs_path_template` was
         specified during initialization, saves the Run dictionary in the corresponding JSON file.
@@ -229,6 +234,7 @@ class Evaluator(BaseModel):
         Args:
             `ctx_model_name`: Name of context-aware model for which Run will be generated.
             `run_name`: Name assigned to the generated Run and to be displayed in metrics tables. If None, the model name will be used as the default value.
+            `K`: Number of top predictions to retain per user. By default all recommendations will be considered.
         """
         if run_name is None:
             run_name = ctx_model_name
@@ -238,6 +244,7 @@ class Evaluator(BaseModel):
 
         run = self._run_gen.compute_contextual_run(
             predictions_path=predictions_path,
+            K=K,
             output_path=output_path,
         )
         run.name = run_name
@@ -247,8 +254,8 @@ class Evaluator(BaseModel):
     def compute_pure_non_contextual_run(
         self,
         non_ctx_model_name: str,
-        run_name: str = None,
-        K: int = None,
+        run_name: Optional[str] = None,
+        K: Optional[PositiveInt] = None,
     ):
         """
         Generates the Run for the specified non-context-aware model without post-filtering and, if
@@ -282,7 +289,7 @@ class Evaluator(BaseModel):
         self,
         non_ctx_model_name: str,
         run_name: str,
-        K: int = None,
+        K: Optional[PositiveInt] = None,
     ):
         """
         Generates Runs for the specified non-context-aware models with post-filtering applied
@@ -317,7 +324,7 @@ class Evaluator(BaseModel):
         postfilter_run_names: List[str] = [],
         norm: str = "min-max",
         method: str = "wsum",
-        run_name: str = None,
+        run_name: Optional[str] = None,
     ):
         """
         Generates a fused Run by combining the specified computed Runs, and normalization and
