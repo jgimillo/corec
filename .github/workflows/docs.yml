@@ -27,4 +27,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
+          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/jgimillo/corec.git
           mkdocs gh-deploy --force --remote-branch gh-pages --remote-name origin --config-file docs/mkdocs.yml
