@@ -121,7 +121,7 @@ class MetricGenerator(BaseModel):
     @staticmethod
     def _get_cutoff_metrics(metrics: List[str], cutoffs: List[PositiveInt] = []):
         ranx_metrics = [metric for metric in metrics if metric in RANX_METRICS]
-        custom_metrics = [metric for metric in CUSTOM_METRICS]
+        custom_metrics = [metric for metric in metrics if metric in CUSTOM_METRICS]
 
         if not len(ranx_metrics + custom_metrics):
             raise Exception("No valid metric was provided.")
