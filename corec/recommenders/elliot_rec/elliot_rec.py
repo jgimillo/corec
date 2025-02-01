@@ -56,13 +56,21 @@ class ElliotRec(BaseRec):
 
         self.elliot_work_dir = self.elliot_work_dir or tempfile.mkdtemp()
 
-    def _prepare_temp_config_file(self, models_config: Dict[str, Dict], K: PositiveInt):
+    def _get_train_items_count(self):
+        train_df = pd.read_csv(
+            self.train_path, sep=self.dataset_sep, compression=self.dataset_compression
+        )
+        return train_df.iloc[:, self.dataset_item_idx].nunique()
+
+    def _prepare_temp_config_file(
+        self, models_config: Dict[str, Dict], K: Optional[PositiveInt] = None
+    ):
         """
         Prepares a temporary configuration file for the Elliot experiment.
 
         Args:
             `models_config`: Configuration for each model to be used in the experiment.
-            `K`: The number recommendations to predict.
+            `K`: The number recommendations to predict. If None, the number of distinct items in the train data will be used.
 
         Returns:
             `Tuple`: A tuple containing the path to the temporary configuration file and the path for the predictions output directory.
@@ -80,7 +88,7 @@ class ElliotRec(BaseRec):
         config["path_output_rec_performance"] = str(output_dir / "performance")
         config["path_output_rec_result"] = str(output_dir / "predictions")
         config["path_output_rec_weight"] = str(output_dir / "weights")
-        config["top_k"] = K
+        config["top_k"] = K if K is not None else self._get_train_items_count()
 
         for model_name, params in models_config.items():
             params.update(META_TEMPLATE)
@@ -178,7 +186,7 @@ class ElliotRec(BaseRec):
     def run_elliot_experiment(
         self,
         models_config: Dict[str, Dict],
-        K: PositiveInt,
+        K: Optional[PositiveInt] = None,
         clean_elliot_work_dir: bool = False,
         clean_temp_dataset_files: bool = False,
     ):
@@ -190,7 +198,7 @@ class ElliotRec(BaseRec):
 
         Args:
             models_config: Configuration for the models used in the experiment (https://elliot.readthedocs.io/en/latest/guide/recommenders.html).
-            K: Number of recommendations to predict.
+            K: Number of recommendations to predict. If None, the number of distinct items in the train data will be used.
             clean_elliot_work_dir: Whether to remove the Elliot work directory after the experiment.
             clean_temp_dataset_files: Whether to remove the temporary dataset files after the experiment.
         """
