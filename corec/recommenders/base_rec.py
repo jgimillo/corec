@@ -47,35 +47,38 @@ class BaseRec(BaseModel):
         default=None,
         description="Column name used for the predicted item ID. If None, the item column name from the dataset will be used.",
     )
-    preds_score_col_name: Optional[str] = Field(
-        default=None,
-        description="Column name used for the predicted score. If None, the rating column name from the dataset will be used.",
+    preds_score_col_name: str = Field(
+        default="score:float",
+        description="Column name used for the predicted score.",
     )
-    compress_preds: bool = Field(
-        default=True,
-        description="Boolean indicating whether the predictions files will be compressed into a gzip format.",
+    preds_test_item_col_name: Optional[str] = Field(
+        default=None,
+        description="Column name used for the query item ID in the predictions file. If None, the item column name from the dataset will be used, prefixed with 'test_'.",
+    )
+    preds_sep: str = Field(
+        default="\t",
+        description="Separator used in the predictions files.",
+    )
+    preds_compression: Optional[str] = Field(
+        default="gzip",
+        description="Compression type used in the predictions files.",
     )
 
     def model_post_init(self, _):
-        if (
-            self.preds_user_col_name
-            and self.preds_item_col_name
-            and self.preds_score_col_name
-        ):
-            return
+        if not self.preds_user_col_name or not self.preds_item_col_name:
+            test_df = pd.read_csv(
+                self.test_path,
+                sep=self.dataset_sep,
+                compression=self.dataset_compression,
+            )
 
-        test_df = pd.read_csv(
-            self.test_path,
-            sep=self.dataset_sep,
-            compression=self.dataset_compression,
-        )
+            self.preds_user_col_name = (
+                self.preds_user_col_name or test_df.columns[self.dataset_user_idx]
+            )
+            self.preds_item_col_name = (
+                self.preds_item_col_name or test_df.columns[self.dataset_item_idx]
+            )
 
-        self.preds_user_col_name = (
-            self.preds_user_col_name or test_df.columns[self.dataset_user_idx]
-        )
-        self.preds_item_col_name = (
-            self.preds_item_col_name or test_df.columns[self.dataset_item_idx]
-        )
-        self.preds_score_col_name = (
-            self.preds_score_col_name or test_df.columns[self.dataset_rating_idx]
+        self.preds_test_item_col_name = (
+            self.preds_test_item_col_name or f"test_{self.preds_item_col_name}"
         )

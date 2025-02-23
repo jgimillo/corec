@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional
 
 import pandas as pd
@@ -10,8 +11,9 @@ from pydantic import (
     PrivateAttr,
     validate_arguments,
 )
+from ranx import Run
 
-from .metric_generator import FuseRun, MetricGenerator
+from .metric_generator import MetricGenerator
 from .qrels_generator import QrelsGenerator
 from .run_generator import RunGenerator
 
@@ -30,6 +32,26 @@ class Evaluator(BaseModel):
         ...,
         description="Template for the prediction file path. All placeholders '{model}' will be dynamically replaced with the model name.",
         examples=["predictions/{model}/{model}_preds.txt"],
+    )
+    metrics: List[str] = Field(
+        ...,
+        description="List of metrics to compute.",
+    )
+    cutoffs: List[PositiveInt] = Field(
+        default=[],
+        description="List of cutoffs to consider when calculating the metrics.",
+    )
+    output_path: Optional[str] = Field(
+        default=None,
+        description="Path to the CSV file where the computed metrics will be saved.",
+    )
+    output_sep: str = Field(
+        default="\t",
+        description="Separator used in the output CSV files.",
+    )
+    preclear_output: bool = Field(
+        default=True,
+        description="Whether to clear the output file before adding new metrics.",
     )
     train_path: Optional[FilePath] = Field(
         default=None,
@@ -84,7 +106,7 @@ class Evaluator(BaseModel):
         description="Separator used in the predictions file.",
     )
     preds_compression: Optional[str] = Field(
-        default=None,
+        default="gzip",
         description="Compression type used in the predictions file.",
     )
     runs_path_template: Optional[str] = Field(
@@ -106,16 +128,14 @@ class Evaluator(BaseModel):
     _qrels_gen = PrivateAttr(default=None)
     _run_gen = PrivateAttr()
     _metric_gen = PrivateAttr(default=None)
-    _qrels = PrivateAttr(default_factory=dict)
-    _contextual_runs = PrivateAttr(default_factory=dict)
-    _pure_non_ctx_runs = PrivateAttr(default_factory=dict)
-    _postfilter_runs = PrivateAttr(default_factory=dict)
-    _fuse_runs = PrivateAttr(default_factory=dict)
 
     class Config:
         extra = "forbid"
 
     def model_post_init(self, _):
+        if not len(self.metrics):
+            raise ValueError("You must provide at least one metric.")
+
         self._qrels_gen = QrelsGenerator(
             test_path=self.test_path,
             user_idx=self.dataset_user_idx,
@@ -143,13 +163,6 @@ class Evaluator(BaseModel):
             ]
 
         self._run_gen = RunGenerator(
-            test_path=self.test_path,
-            train_path=self.train_path,
-            valid_path=self.valid_path,
-            context_idxs=self.dataset_ctx_idxs,
-            dataset_item_idx=self.dataset_item_idx,
-            dataset_sep=self.dataset_sep,
-            dataset_compression=self.dataset_compression,
             preds_user_idx=self.preds_user_idx,
             preds_item_idx=self.preds_item_idx,
             preds_score_idx=self.preds_score_idx,
@@ -169,34 +182,6 @@ class Evaluator(BaseModel):
         return self.runs_path_template.replace("{run}", run_name)
 
     @validate_arguments
-    def get_computed_summary(self):
-        """
-        Returns a dictionary summarizing the progress of computations. The dictionary includes:
-
-        - Whether Qrels have been computed.
-        - The names of Runs generated for contextual, pure non-contextual, and post-filtered models.
-        - The names of fused Runs computed from the above models.
-        """
-        return {
-            "qrels": len(self._qrels) != 0,
-            "runs": {
-                "contextual": list(self._contextual_runs.keys()),
-                "non-contextual": {
-                    "pure": list(self._pure_non_ctx_runs.keys()),
-                    "postfilter": list(self._postfilter_runs.keys()),
-                },
-                "fuse": [
-                    {
-                        "runs": fuse_run.fused_run_names,
-                        "norm": fuse_run.norm,
-                        "method": fuse_run.method,
-                    }
-                    for fuse_run in self._fuse_runs.values()
-                ],
-            },
-        }
-
-    @validate_arguments
     def compute_qrels(self, output_path: Optional[str] = None):
         """
         Computes the test data Qrels using the class rating threshold and
@@ -205,13 +190,16 @@ class Evaluator(BaseModel):
         Args:
             `output_path`: `output_path`: Path to save the Qrels dictionary as a JSON file. If not specified, the Qrels is not saved.
         """
-        self._qrels = self._qrels_gen.compute_qrels(
+        qrels = self._qrels_gen.compute_qrels(
             rating_thr=self.rating_thr,
             output_path=output_path,
         )
 
         self._metric_gen = MetricGenerator(
-            qrels=self._qrels,
+            qrels=qrels,
+            output_path=self.output_path,
+            output_sep=self.output_sep,
+            preclear_output=self.preclear_output,
             train_path=self.train_path,
             valid_path=self.valid_path,
             dataset_item_idx=self.dataset_item_idx,
@@ -221,204 +209,128 @@ class Evaluator(BaseModel):
         )
 
     @validate_arguments
-    def compute_contextual_run(
+    def compute_run_metrics(
         self,
-        ctx_model_name: str,
+        model_name: str,
         run_name: Optional[str] = None,
         K: Optional[PositiveInt] = None,
+        only_compute_run: bool = False,
     ):
         """
-        Generates the Run for the specified context-aware model and, if `runs_path_template` was
+        Generates the Run for the specified recommender and, if `runs_path_template` was
         specified during initialization, saves the Run dictionary in the corresponding JSON file.
+        Finally, the corresponding metrics are computed and stored in the output path specified
+        during the initialization of the class.
 
         Args:
-            `ctx_model_name`: Name of context-aware model for which Run will be generated.
+            `model_name`: Name of model for which Run will be generated. Its predictions will be loaded from the class attribute `preds_path_template`.
             `run_name`: Name assigned to the generated Run and to be displayed in metrics tables. If None, the model name will be used as the default value.
             `K`: Number of top predictions to retain per user. By default all recommendations will be considered.
-        """
-        if run_name is None:
-            run_name = ctx_model_name
+            `only_compute_run`: Whether to only compute the Run and skip metrics calculation.
 
-        predictions_path = self._get_preds_path(ctx_model_name)
+        Raises:
+            `RuntimeError`: If Qrels were not previously computed.
+        """
+        if self._metric_gen is None:
+            raise RuntimeError("Qrels haven't been computed yet.")
+
+        if run_name is None:
+            run_name = model_name
+
+        predictions_path = self._get_preds_path(model_name)
         output_path = self._get_run_output_path(run_name)
 
-        run = self._run_gen.compute_contextual_run(
+        if output_path is None and only_compute_run:
+            return
+
+        run = self._run_gen.compute_run(
             predictions_path=predictions_path,
             K=K,
             output_path=output_path,
         )
         run.name = run_name
-        self._contextual_runs[run.name] = run
+
+        if not only_compute_run:
+            self._metric_gen.compute_non_fuse_run_metrics(
+                run=run,
+                metrics=self.metrics,
+                cutoffs=self.cutoffs,
+            )
 
     @validate_arguments
-    def compute_pure_non_contextual_run(
+    def compute_fuse_metrics(
         self,
-        non_ctx_model_name: str,
-        run_name: Optional[str] = None,
-        K: Optional[PositiveInt] = None,
-    ):
-        """
-        Generates the Run for the specified non-context-aware model without post-filtering and, if
-        `runs_path_template` was specified during initialization, saves the Runs dictionaries
-        in the corresponding JSON file.
-
-        Args:
-            `non_ctx_model_name`: Name of non-context-aware model for which Run will be generated.
-            `run_name`: Name assigned to the generated Run and to be displayed in metrics tables. If None, the model name will be used as the default value.
-            `K`: Number of top predictions to retain per user. By default all recommendations will be considered.
-        """
-        if run_name is None:
-            run_name = non_ctx_model_name
-
-        predictions_path = self._get_preds_path(non_ctx_model_name)
-        output_path = self._get_run_output_path(run_name)
-
-        if run_name is None:
-            run_name = non_ctx_model_name
-
-        run = self._run_gen.compute_non_contextual_run(
-            predictions_path=predictions_path,
-            K=K,
-            output_path=output_path,
-        )
-        run.name = run_name
-        self._pure_non_ctx_runs[run.name] = run
-
-    @validate_arguments
-    def compute_postfilter_run(
-        self,
-        non_ctx_model_name: str,
-        run_name: str,
-        K: Optional[PositiveInt] = None,
-    ):
-        """
-        Generates Runs for the specified non-context-aware models with post-filtering applied
-        and, if `runs_path_template` was specified during initialization, saves the Runs dictionaries
-        in the corresponding JSON file.
-
-        Args:
-            `non_ctx_models_names`: List of names of non-context-aware models for which Runs will be generated.
-            `run_name`: Name assigned to the generated Run and to be displayed in metrics tables. If None, the model name will be used as the default value.
-            `K`: Number of top predictions to retain per user. By default all recommendations will be considered.
-        """
-        if run_name is None:
-            run_name = non_ctx_model_name
-
-        predictions_path = self._get_preds_path(non_ctx_model_name)
-        output_path = self._get_run_output_path(run_name)
-
-        run = self._run_gen.compute_non_contextual_run(
-            predictions_path=predictions_path,
-            context_postfilter=True,
-            K=K,
-            output_path=output_path,
-        )
-        run.name = run_name
-        self._postfilter_runs[run.name] = run
-
-    @validate_arguments
-    def compute_fuse_run(
-        self,
-        ctx_run_names: List[str] = [],
-        pure_non_ctx_run_names: List[str] = [],
-        postfilter_run_names: List[str] = [],
+        run_names: List[str] = [],
+        model_names: List[str] = [],
         norm: str = "min-max",
         method: str = "wsum",
         run_name: Optional[str] = None,
+        only_compute_run: bool = False,
     ):
         """
-        Generates a fused Run by combining the specified computed Runs, and normalization and
-        fusion methods. The computed Run is optionally saved to a JSON file.
+        Generates a fused Run by combining the specified computed Runs using the given normalization
+        and fusion methods. If any model name is provided, their Runs will be precomputed as well.
+        The computed Run can optionally be saved to a JSON file.
 
         Args:
-            `ctx_run_names`: List of names of computed contextual Runs to be fused.
-            `pure_non_ctx_run_names`: List of names of computed pure non-contextual Runs to be fused.
-            `postfilter_run_names`: List of names of computed post-filtered Runs to be fused.
+            `run_names`: List of names of computed Runs to be fused. They will be loaded from the class attribute `runs_path_template`.
+            `model_names`: List of model names to compute the Run and include in the fusion process.
             `norm`: Ranx normalization method to apply before fusion.
             `method`: Ranx fusion method to apply.
-            `run_name`: Name assigned to the generated Run. If None, a concatenation between the model names, norm and method will be used as the default value.
+            `run_name`: Name assigned to the generated Run. If None, a concatenation of the model names will be used as the default value.
+            `only_compute_run`: Whether to only compute the Run and skip metrics calculation.
 
         Raises:
-            `RuntimeError`: If any specified Run was not previously computed.
+            RuntimeError: If Qrels or any specified Run was not previously computed.
         """
-        runs_to_check = {
-            "contextual": (ctx_run_names, self._contextual_runs),
-            "pure non-contextual": (pure_non_ctx_run_names, self._pure_non_ctx_runs),
-            "postfilter": (postfilter_run_names, self._postfilter_runs),
-        }
+        if self._metric_gen is None:
+            raise RuntimeError("Qrels haven't been computed yet.")
 
         runs_to_fuse = []
-        for run_type, (check_names, run_dict) in runs_to_check.items():
-            for check_name in check_names:
-                if check_name not in run_dict:
-                    raise RuntimeError(
-                        f"{check_name} Run of type '{run_type}' is not yet computed."
-                    )
-                runs_to_fuse.append(run_dict[check_name])
+
+        for check_name in run_names:
+            run_path = self._get_run_output_path(check_name)
+
+            if not os.path.exists(run_path):
+                raise RuntimeError(
+                    f"'{check_name}' Run has not been found in the path '{run_path}'."
+                )
+            run = Run.from_file(run_path, name=check_name)
+            runs_to_fuse.append(run)
+
+        for model_name in model_names:
+            predictions_path = self._get_preds_path(model_name)
+            output_path = self._get_run_output_path(model_name)
+
+            run = self._run_gen.compute_run(
+                predictions_path=predictions_path,
+                output_path=output_path,
+            )
+            run.name = model_name
+            runs_to_fuse.append(run)
 
         if not len(runs_to_fuse):
             return
 
         fused_run_names = [run.name for run in runs_to_fuse]
         if run_name is None:
-            run_name = "+".join(fused_run_names)
-            run_name += f"_{norm}_{method}"
+            run_name = " + ".join(fused_run_names)
 
         output_path = self._get_run_output_path(run_name)
 
-        run = self._run_gen.compute_fuse_run(
+        if output_path is None and only_compute_run:
+            return
+
+        fuse_run = self._run_gen.compute_fuse_run(
             runs=runs_to_fuse, norm=norm, method=method, output_path=output_path
         )
-        run.name = run_name
+        fuse_run.name = run_name
 
-        self._fuse_runs[run.name] = FuseRun(
-            run=run,
-            fused_run_names=fused_run_names,
-            norm=norm,
-            method=method,
-        )
-
-    @validate_arguments
-    def compute_metrics(
-        self,
-        non_fuse_output_path: str,
-        fuse_output_path: str,
-        metrics: List[str] = [],
-        cutoffs: List[PositiveInt] = [],
-    ):
-        """
-        Compute and save metrics in the specified CSV files for all the computed Runs.
-
-        Args:
-            `non_fuse_output_path`: Path to the CSV file where metrics for non-fused runs will be saved.
-            `fuse_output_path`: Path to the CSV file where metrics for fused runs will be saved.
-            `metrics`: List of metrics to compute.
-            `cutoffs`: List of cutoffs to consider when calculating the metrics.
-
-        Raises:
-            `RuntimeError`: If Qrels were not previously computed.
-        """
-        if self._metric_gen is None:
-            raise RuntimeError("Qrels haven't beeen computer yet.")
-
-        non_fuse_runs = (
-            list(self._contextual_runs.values())
-            + list(self._pure_non_ctx_runs.values())
-            + list(self._postfilter_runs.values())
-        )
-
-        self._metric_gen.compute_non_fuse_runs_metrics(
-            output_path=non_fuse_output_path,
-            runs=non_fuse_runs,
-            metrics=metrics,
-            cutoffs=cutoffs,
-        )
-
-        fuse_runs = list(self._fuse_runs.values())
-
-        self._metric_gen.compute_fuse_runs_metrics(
-            output_path=fuse_output_path,
-            fuse_runs=fuse_runs,
-            metrics=metrics,
-            cutoffs=cutoffs,
-        )
+        if not only_compute_run:
+            self._metric_gen.compute_fuse_run_metrics(
+                fuse_run=fuse_run,
+                fuse_norm=norm,
+                fuse_method=method,
+                metrics=self.metrics,
+                cutoffs=self.cutoffs,
+            )

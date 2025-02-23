@@ -1,12 +1,12 @@
-import gzip
 import os
 import re
 import shutil
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 import yaml
 from elliot.run import run_experiment
@@ -43,6 +43,7 @@ class ElliotRec(BaseRec):
     _temp_train_path = PrivateAttr()
     _temp_test_path = PrivateAttr()
     _temp_valid_path = PrivateAttr()
+    _short_test_df = PrivateAttr()
 
     class Config:
         extra = "forbid"
@@ -53,6 +54,16 @@ class ElliotRec(BaseRec):
         self._temp_train_path = self._prepare_temp_dataset_file(self.train_path)
         self._temp_test_path = self._prepare_temp_dataset_file(self.test_path)
         self._temp_valid_path = self._prepare_temp_dataset_file(self.valid_path)
+
+        self._short_test_df = pd.read_csv(
+            self.test_path,
+            sep=self.dataset_sep,
+            compression=self.dataset_compression,
+            header=0,
+            usecols=[self.dataset_user_idx, self.dataset_item_idx],
+            names=[self.preds_user_col_name, self.preds_test_item_col_name],
+        )
+        self._short_test_df.set_index(self.preds_user_col_name, inplace=True)
 
         self.elliot_work_dir = self.elliot_work_dir or tempfile.mkdtemp()
 
@@ -125,21 +136,24 @@ class ElliotRec(BaseRec):
                 self.dataset_rating_idx,
             ]
             df = df.iloc[:, target_cols_idxs]
-            df.to_csv(temp_file.name, sep=self.dataset_sep, index=False, header=False)
+            df.to_csv(temp_file.name, sep="\t", index=False, header=False)
 
         return temp_file.name
 
     def _unify_predictions_files(
         self,
         messy_folder_path: str,
+        target_models: Optional[List[str]] = None,
     ):
         """
         Organizes prediction files from a folder by model, selects the latest file for each model,
-        adds a header, compresses it into gzip format, and saves it to a specified destination folder.
+        adds a header, includes a column to reference the query item (the test item),
+        compresses it into gzip format, and saves it to a specified destination folder.
         Older files are removed.
 
         Args:
             `messy_folder_path`: Path to the folder containing the Elliot prediction files.
+            `target_models`: Models names to take into account during the unification. If None, all the found ones will be considered.
         """
         folder_path = Path(messy_folder_path).resolve()
         files = [file for file in folder_path.iterdir() if file.is_file()]
@@ -147,14 +161,19 @@ class ElliotRec(BaseRec):
         model_files = {}
         pattern = r"^(?P<model>\w+)_"
 
+        # Locate Elliot predictions files
         for file in files:
             match = re.match(pattern, file.name)
             model = match.group("model") if match else file.name.rsplit(".", 1)[0]
+
+            if target_models is not None and model not in target_models:
+                continue
 
             if model not in model_files:
                 model_files[model] = []
             model_files[model].append(file)
 
+        # Transform those files
         for model, files in model_files.items():
             files.sort(key=lambda f: f.stat().st_ctime, reverse=True)
             last_file = files[0]
@@ -164,20 +183,21 @@ class ElliotRec(BaseRec):
                 self.preds_score_col_name,
             ]
 
-            model_file = Path(self.preds_path_template.replace("{model}", model))
-            model_file.parent.mkdir(parents=True, exist_ok=True)
+            elliot_df = pd.read_csv(last_file, header=None, names=feat_names, sep="\t")
+            elliot_df.set_index(self.preds_user_col_name, inplace=True)
 
-            with open(last_file, "rt+") as f_in:
-                content = f_in.read()
-                f_in.seek(0, 0)
-                f_in.write("\t".join(feat_names) + "\n" + content)
+            final_df = self._short_test_df.join(elliot_df, how="left").reset_index()
+            final_df = final_df[feat_names + [self.preds_test_item_col_name]]
+            final_df = final_df[final_df[self.preds_score_col_name] != -np.inf]
 
-            if self.compress_preds:
-                with open(last_file, "rb") as f_in:
-                    with gzip.open(model_file, "wb") as f_out:
-                        shutil.copyfileobj(f_in, f_out)
-            else:
-                shutil.copy(last_file, model_file)
+            output_path = Path(self.preds_path_template.replace("{model}", model))
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            final_df.to_csv(
+                output_path,
+                sep=self.preds_sep,
+                index=False,
+                compression=self.preds_compression,
+            )
 
             for file in files:
                 file.unlink()
@@ -208,7 +228,9 @@ class ElliotRec(BaseRec):
             )
             run_experiment(temp_config_file)
             os.remove(temp_config_file)
-            self._unify_predictions_files(messy_preds_dir)
+            self._unify_predictions_files(
+                messy_preds_dir, target_models=list(models_config.keys())
+            )
         except Exception as exc:
             raise exc
         finally:

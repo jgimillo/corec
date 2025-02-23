@@ -19,14 +19,6 @@ class HeuristicRec(ContextRec, ABC):
     or rating columns will be treated as context features for the recommendation process.
     """
 
-    preds_test_item_col_name: Optional[str] = Field(
-        default=None,
-        description="Column name used for the query item ID in the predictions file. If None, the item column name from the dataset will be used, prefixed with 'test_'.",
-    )
-    preds_sep: str = Field(
-        default="\t",
-        description="Separator used in the predictions file.",
-    )
     chunk_size: Optional[PositiveInt] = Field(
         default=None,
         description="Size of the chunks in which the test data will be split. If None, the entire test dataset will be used without splitting.",
@@ -41,10 +33,6 @@ class HeuristicRec(ContextRec, ABC):
 
     def model_post_init(self, __context):
         super().model_post_init(__context)
-
-        self.preds_test_item_col_name = (
-            self.preds_test_item_col_name or f"test_{self.preds_item_col_name}"
-        )
 
         self._test_df = pd.read_csv(
             self.test_path, sep=self.dataset_sep, compression=self.dataset_compression
@@ -140,7 +128,7 @@ class HeuristicRec(ContextRec, ABC):
             output_path,
             sep=self.preds_sep,
             index=False,
-            compression="gzip" if self.compress_preds else None,
+            compression=self.preds_compression,
         )
 
         self._logger.info("Recommendation process completed")

@@ -1,10 +1,9 @@
 import csv
 import re
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional
 
 import numpy as np
-import pandas as pd
 from pydantic import (
     BaseModel,
     Field,
@@ -15,28 +14,13 @@ from pydantic import (
 )
 from ranx import Qrels, Run, evaluate
 
-from ..utils import context_satisfaction
+from ..utils import context_satisfaction, get_context_lookup_dict
 from .constants import (
     CUSTOM_METRICS,
     CUTOFF_RANX_METRICS,
     NON_CUTOFF_RANX_METRICS,
     RANX_METRICS,
 )
-
-
-class FuseRun(BaseModel):
-    """Auxiliary class to group the fuse `Run` along with some of the fuse parameters."""
-
-    run: Run = Field(
-        ...,
-        description="The computed fuse Run.",
-    )
-    fused_run_names: List[str] = Field(..., description="The names of the fused Runs.")
-    norm: str = Field(..., description="The ranx norm used during the fusion.")
-    method: str = Field(..., description="The ranx method used during the fusion.")
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class MetricGenerator(BaseModel):
@@ -54,6 +38,18 @@ class MetricGenerator(BaseModel):
     qrels: Qrels = Field(
         ...,
         description="Qrels used for the metrics computation.",
+    )
+    output_path: str = Field(
+        ...,
+        description="File path where the computed metrics will be saved.",
+    )
+    output_sep: str = Field(
+        default="\t",
+        description="Separator used in the output CSV files.",
+    )
+    preclear_output: bool = Field(
+        default=True,
+        description="Whether to clear the output file before adding new metrics.",
     )
     train_path: Optional[FilePath] = Field(
         default=None,
@@ -86,40 +82,38 @@ class MetricGenerator(BaseModel):
         extra = "forbid"
 
     def model_post_init(self, _):
+        Path(self.output_path).parent.mkdir(parents=True, exist_ok=True)
+
+        if self.preclear_output:
+            with open(self.output_path, mode="w", newline="", encoding="utf-8") as file:
+                csv_writer = csv.writer(file, delimiter=self.output_sep)
+                cols_names = [
+                    "Models",
+                    "Fuse norm",
+                    "Fuse method",
+                    "Metric",
+                    "Cutoff",
+                    "Score",
+                ]
+                csv_writer.writerow(cols_names)
+
         if self.train_path is None:
-            if not len(self.dataset_ctx_idxs):
-                raise ValueError("Context indexes list cannot be empty.")
             return
 
-        item_ctx_df = pd.read_csv(
-            self.train_path,
-            sep=self.dataset_sep,
-            compression=self.dataset_compression,
-        )
-
-        if self.valid_path is not None:
-            valid_df = pd.read_csv(
-                self.valid_path,
-                sep=self.dataset_sep,
-                compression=self.dataset_compression,
-            )
-            item_ctx_df = pd.concat([item_ctx_df, valid_df])
-
-        ctx_cols_names = [item_ctx_df.columns[i] for i in self.dataset_ctx_idxs]
-        item_col_name = item_ctx_df.columns[self.dataset_item_idx]
-
-        item_ctx_df[item_col_name] = item_ctx_df[item_col_name].astype(str)
-        item_ctx_df = item_ctx_df[[item_col_name] + ctx_cols_names].drop_duplicates()
-
-        self._context_lookup = dict(
-            zip(
-                item_ctx_df[item_col_name],
-                item_ctx_df[ctx_cols_names].apply(tuple, axis=1),
-            )
+        self._context_lookup = get_context_lookup_dict(
+            train_path=self.train_path,
+            dataset_ctx_idxs=self.dataset_ctx_idxs,
+            valid_path=self.valid_path,
+            dataset_item_idx=self.dataset_item_idx,
+            dataset_sep=self.dataset_sep,
+            dataset_compression=self.dataset_compression,
         )
 
     @staticmethod
     def _get_cutoff_metrics(metrics: List[str], cutoffs: List[PositiveInt] = []):
+        if not len(metrics):
+            return [], []
+
         ranx_metrics = [metric for metric in metrics if metric in RANX_METRICS]
         custom_metrics = [metric for metric in metrics if metric in CUSTOM_METRICS]
 
@@ -149,6 +143,9 @@ class MetricGenerator(BaseModel):
             else (compose_metric, None)
         )
 
+    def _get_item_context(self, item_id: str):
+        return next(iter(self._context_lookup.get(item_id, [])), [])
+
     def _compute_ctx_sat_metric(
         self,
         run: Run,
@@ -164,10 +161,11 @@ class MetricGenerator(BaseModel):
             match = re.match(r"u(?P<user_id>[^_]+)_i(?P<item_id>.+)", user_test_item)
             test_item_id = match.group("item_id")
 
-            test_item_ctx = np.array(self._context_lookup.get(test_item_id, []))
+            test_item_ctx = np.array(self._get_item_context(test_item_id))
             preds_cutoff = list(preds.keys())[: max(cutoffs) if cutoffs else len(preds)]
+
             pred_ctx_matrix = np.array(
-                [self._context_lookup.get(item_id, []) for item_id in preds_cutoff]
+                [self._get_item_context(item_id) for item_id in preds_cutoff]
             )
 
             # If a Run contains a value with no predictions, we omit it
@@ -194,85 +192,58 @@ class MetricGenerator(BaseModel):
 
     def _compute_metrics(
         self,
-        output_path: FilePath,
-        runs: List[Union[Run, FuseRun]],
+        run: Run,
         metrics: List[str],
         cutoffs: List[PositiveInt] = [],
-        is_fuse: bool = False,
+        fuse_norm: Optional[str] = None,
+        fuse_method: Optional[str] = None,
     ):
-        if not len(runs):
-            return
-
         ranx_cutoff_metrics, custom_metrics = self._get_cutoff_metrics(
             metrics, cutoffs=cutoffs
         )
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-        file = open(output_path, mode="w", newline="", encoding="utf-8")
-        csv_writer = csv.writer(file, delimiter=";")
+        file = open(self.output_path, mode="a", newline="", encoding="utf-8")
+        csv_writer = csv.writer(file, delimiter=self.output_sep)
+        base_row = [run.name, fuse_norm, fuse_method]
 
-        if is_fuse:
-            max_fuse_runs = max(len(fuse_run.fused_run_names) for fuse_run in runs)
-            cols_names = [f"Model {i + 1}" for i in range(max_fuse_runs)]
-            cols_names += ["Fuse norm", "Fuse method", "Metric", "Cutoff", "Score"]
-        else:
-            cols_names = ["Model", "Metric", "Cutoff", "Score"]
-
-        csv_writer.writerow(cols_names)
-
-        for run in runs:
-            base_row = (
-                list(run.fused_run_names)
-                + [None] * (max_fuse_runs - len(run.fused_run_names))
-                + [run.norm, run.method]
-                if is_fuse
-                else [run.name]
+        # Ranx metrics
+        if ranx_cutoff_metrics:
+            ranx_scores = evaluate(
+                qrels=self.qrels,
+                run=run,
+                metrics=ranx_cutoff_metrics,
+                make_comparable=True,
             )
+            for cutoff_metric in ranx_cutoff_metrics:
+                metric_name, cutoff = self._split_cutoff_metric(cutoff_metric)
+                score = ranx_scores[cutoff_metric]
+                csv_writer.writerow(base_row + [metric_name, cutoff, f"{score:.4f}"])
 
-            # Ranx metrics
-            if ranx_cutoff_metrics:
-                ranx_scores = evaluate(
-                    qrels=self.qrels,
-                    run=run.run if is_fuse else run,
-                    metrics=ranx_cutoff_metrics,
-                    make_comparable=True,
-                )
-                for cutoff_metric in ranx_cutoff_metrics:
-                    metric_name, cutoff = self._split_cutoff_metric(cutoff_metric)
-                    score = ranx_scores[cutoff_metric]
+        # Custom metrics
+        for metric in custom_metrics:
+            aggregation_fn = np.mean if metric == "mean_ctx_sat" else np.sum
+            scores = self._compute_ctx_sat_metric(run, aggregation_fn, cutoffs=cutoffs)
+            if not cutoffs:
+                csv_writer.writerow(base_row + [metric, None, f"{scores:.4f}"])
+            else:
+                for cutoff in cutoffs:
                     csv_writer.writerow(
-                        base_row + [metric_name, cutoff, f"{score:.4f}"]
+                        base_row + [metric, cutoff, f"{scores[cutoff]:.4f}"]
                     )
-
-            # Custom metrics
-            for metric in custom_metrics:
-                aggregation_fn = np.mean if metric == "mean_ctx_sat" else np.sum
-                scores = self._compute_ctx_sat_metric(
-                    run.run if is_fuse else run, aggregation_fn, cutoffs=cutoffs
-                )
-                if not cutoffs:
-                    csv_writer.writerow(base_row + [metric, None, f"{scores:.4f}"])
-                else:
-                    for cutoff in cutoffs:
-                        csv_writer.writerow(
-                            base_row + [metric, cutoff, f"{scores[cutoff]:.4f}"]
-                        )
 
         file.close()
 
-    def compute_non_fuse_runs_metrics(
+    def compute_non_fuse_run_metrics(
         self,
-        output_path: FilePath,
-        runs: List[Run],
+        run: Run,
         metrics: List[str],
         cutoffs: List[PositiveInt] = [],
     ):
         """
-        Computes metrics for the provided non fuse runs and saves the results in a CSV file.
+        Computes metrics for the provided non fuse Run and saves the results in a CSV file.
 
         Args:
-            `output_path`: File path where the computed metrics will be saved as a CSV file.
-            `runs`: List of Runs for which the metrics will be computed.
+            `run`: Run for which the metrics will be computed.
             `metrics`: List of metric names to compute. Not supported ones will be omitted.
             `cutoffs`: List of cutoff values to apply to the metrics.
 
@@ -280,17 +251,16 @@ class MetricGenerator(BaseModel):
             `ValueError`: If no valid metric was provided.
         """
         self._compute_metrics(
-            output_path=output_path,
-            runs=runs,
+            run=run,
             metrics=metrics,
             cutoffs=cutoffs,
-            is_fuse=False,
         )
 
-    def compute_fuse_runs_metrics(
+    def compute_fuse_run_metrics(
         self,
-        output_path: FilePath,
-        fuse_runs: List[FuseRun],
+        fuse_run: Run,
+        fuse_norm: str,
+        fuse_method: str,
         metrics: List[str],
         cutoffs: List[PositiveInt] = [],
     ):
@@ -298,9 +268,9 @@ class MetricGenerator(BaseModel):
         Computes metrics for the provided non fuse runs and saves the results in a CSV file.
 
         Args:
-            `output_path`: File path where the computed metrics will be saved as a CSV file.
-            `qrels`: Qrels used for metric computation.
-            `fuse_runs`: List of FuseRun diccionaries for which the metrics will be computed.
+            `fuse_run`: Run for which the metrics will be computed.
+            `fuse_norm`: Fuse norm to be indicated in the CSV file.
+            `fuse_method`: Fuse method to be indicated in the CSV file.
             `metrics`: List of metric names to compute. Not supported ones will be omitted.
             `cutoffs`: List of cutoff values to apply to the metrics.
 
@@ -308,9 +278,9 @@ class MetricGenerator(BaseModel):
             `ValueError`: If no valid metric was provided.
         """
         self._compute_metrics(
-            output_path=output_path,
-            runs=fuse_runs,
+            run=fuse_run,
             metrics=metrics,
             cutoffs=cutoffs,
-            is_fuse=True,
+            fuse_norm=fuse_norm,
+            fuse_method=fuse_method,
         )

@@ -1,5 +1,8 @@
+from typing import List, Optional, Union
+
 import numpy as np
-from pydantic import NonNegativeFloat
+import pandas as pd
+from pydantic import FilePath, NonNegativeFloat, NonNegativeInt, validate_arguments
 
 
 def context_satisfaction(
@@ -29,3 +32,61 @@ def context_satisfaction(
     union = np.where(union == 0, 1, union)
 
     return intersect / (union + alpha * diff / np.sum(ctx_rec))
+
+
+@validate_arguments
+def get_context_lookup_dict(
+    train_path: FilePath,
+    dataset_ctx_idxs: Union[List[NonNegativeInt], NonNegativeInt],
+    valid_path: Optional[FilePath] = None,
+    dataset_item_idx: NonNegativeInt = 1,
+    dataset_sep: str = "\t",
+    dataset_compression: Optional[str] = None,
+):
+    """
+    Processes the training and validation datasets to create a mapping
+    where each item is linked to a set of contexts it appears in.
+
+    Args:
+        `train_path`: Path to the training dataset file.
+        `dataset_ctx_idxs`: Column index(es) indicating the context information in the dataset.
+        `valid_path`: Path to the validation dataset file.
+        `dataset_item_idx`: Column index representing the item ID in the dataset files.
+        `dataset_sep`: Delimiter used in the dataset files.
+        `dataset_compression`: Compression format used for the dataset files.
+
+    Raises:
+        `ValueError`: If the context indexes list is empty.
+
+    Returns:
+        `dict`: A dictionary where keys are item IDs as strings and values are sets of associated contexts.
+    """
+    if not len(dataset_ctx_idxs):
+        raise ValueError("Context indexes list cannot be empty.")
+
+    if isinstance(dataset_ctx_idxs, int):
+        dataset_ctx_idxs = [dataset_ctx_idxs]
+
+    item_ctx_df = pd.read_csv(
+        train_path,
+        sep=dataset_sep,
+        compression=dataset_compression,
+    )
+    if valid_path is not None:
+        valid_df = pd.read_csv(
+            valid_path,
+            sep=dataset_sep,
+            compression=dataset_compression,
+        )
+        item_ctx_df = pd.concat([item_ctx_df, valid_df])
+
+    ctx_cols_names = [item_ctx_df.columns[i] for i in dataset_ctx_idxs]
+    item_col_name = item_ctx_df.columns[dataset_item_idx]
+
+    context_lookup = (
+        item_ctx_df.groupby(item_col_name)[ctx_cols_names]
+        .apply(lambda x: set(tuple(i) if len(i) > 1 else i[0] for i in x.values))
+        .to_dict()
+    )
+
+    return {str(k): v for k, v in context_lookup.items()}

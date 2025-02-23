@@ -1,4 +1,5 @@
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -7,132 +8,123 @@ from pydantic import (
     Field,
     FilePath,
     NonNegativeInt,
-    PositiveInt,
     PrivateAttr,
     validate_arguments,
 )
+
+from ..utils import get_context_lookup_dict
 
 
 class PostFilter(BaseModel):
     """Class to post-filter predictions based on training (and validation) data."""
 
-    predictions_path: FilePath = Field(..., description="Predictions file path.")
-    preds_user_idx: NonNegativeInt = Field(
-        default=0, description="Index for the user id column in the predictions."
-    )
-    preds_sep: str = Field(
-        default="\t", description="Separator used in the predictions file."
-    )
-    preds_compression: str = Field(
-        default=None, description="Compression type used in the predictions file."
-    )
-    train_path: Optional[FilePath] = Field(
-        default=None,
+    train_path: FilePath = Field(
+        default=...,
         description="Train data file path. If not specified, context filtering will not be performed.",
     )
+    dataset_ctx_idxs: Union[List[NonNegativeInt], NonNegativeInt] = Field(
+        ...,
+        description="Context column index(es) in the dataset.",
+    )
+    preds_user_idx: NonNegativeInt = Field(
+        default=0,
+        description="Index for the user id column in the predictions.",
+    )
+    preds_item_idx: NonNegativeInt = Field(
+        default=1,
+        description="Index for the recommended item id column in the predictions.",
+    )
+    preds_test_item_idx: NonNegativeInt = Field(
+        default=3,
+        description="Index for the query item id column in the predictions.",
+    )
+    preds_sep: str = Field(
+        default="\t",
+        description="Separator used in the predictions file.",
+    )
+    preds_compression: Optional[str] = Field(
+        default="gzip",
+        description="Compression type used in the predictions file.",
+    )
     valid_path: Optional[FilePath] = Field(
-        default=None, description="Validation data file path."
+        default=None,
+        description="Validation data file path.",
     )
-    user_idx: NonNegativeInt = Field(
-        default=0, description="Index for the user id column in the test data."
+    dataset_user_idx: NonNegativeInt = Field(
+        default=0,
+        description="Index for the user id column in the dataset.",
     )
-    item_idx: NonNegativeInt = Field(
-        default=1, description="Index for the item id column in the test data."
-    )
-    context_idxs: List[NonNegativeInt] = Field(
-        ..., description="Context column indexes in the dataset."
+    dataset_item_idx: NonNegativeInt = Field(
+        default=1,
+        description="Index for the item id column in the dataset.",
     )
     dataset_sep: str = Field(
-        default="\t", description="Separator used in the dataset files."
+        default="\t",
+        description="Separator used in the dataset files.",
     )
     dataset_compression: Optional[str] = Field(
-        default=None, description="Compression type used in the dataset files."
+        default=None,
+        description="Compression type used in the dataset files.",
     )
-    _preds_df = PrivateAttr()
-    _user_preds_col_name = PrivateAttr()
-    _items_ids = PrivateAttr()
-    _user_ids = PrivateAttr()
-    _num_preds = PrivateAttr()
-    _context_lookup = PrivateAttr(default=None)
+    _context_lookup = PrivateAttr()
 
     class Config:
         extra = "forbid"
 
     def model_post_init(self, _):
-        self._preds_df = pd.read_csv(
-            self.predictions_path,
+        if not len(self.dataset_ctx_idxs):
+            raise ValueError("Context indexes list cannot be empty.")
+
+        self._context_lookup = get_context_lookup_dict(
+            train_path=self.train_path,
+            dataset_ctx_idxs=self.dataset_ctx_idxs,
+            valid_path=self.valid_path,
+            dataset_item_idx=self.dataset_item_idx,
+            dataset_sep=self.dataset_sep,
+            dataset_compression=self.dataset_compression,
+        )
+
+    @validate_arguments
+    def postfilter(self, preds_path: FilePath, output_path: str):
+        """
+        Loads a predictions file, filters out rows where the predicted item and the
+        query item do not share at least one context, and saves the filtered predictions
+        keeping the same format as the original file.
+
+        Args:
+            `preds_path`: Path to the CSV file containing the predictions.
+            `output_path`: Path to save the post-filtered predictions file.
+        """
+        preds_df = pd.read_csv(
+            preds_path,
             sep=self.preds_sep,
             compression=self.preds_compression,
         )
-        self._user_preds_col_name = self._preds_df.columns[self.preds_user_idx]
-        self._item_ids = self._preds_df.iloc[:, self.item_idx].values
-        self._user_ids = self._preds_df.iloc[:, self.user_idx].values
-        self._num_preds = self._preds_df.shape[0]
 
-        if self.train_path is None:
-            return
+        preds_items = preds_df.iloc[:, self.preds_item_idx].astype(str).values
+        preds_test_items = preds_df.iloc[:, self.preds_test_item_idx].astype(str).values
 
-        item_ctx_df = pd.read_csv(
-            self.train_path,
-            sep=self.dataset_sep,
-            compression=self.dataset_compression,
+        items_contexts = np.array(
+            [self._context_lookup.get(item, []) for item in preds_items]
         )
-        if self.valid_path is not None:
-            valid_df = pd.read_csv(self.valid_path, sep=self.dataset_sep)
-            item_ctx_df = pd.concat([item_ctx_df, valid_df])
-
-        ctx_cols_names = [item_ctx_df.columns[i] for i in self.context_idxs]
-        item_col_name = item_ctx_df.columns[self.item_idx]
-
-        context_lookup = (
-            item_ctx_df.groupby(ctx_cols_names)[item_col_name].apply(set).to_dict()
+        test_items_contexts = np.array(
+            [self._context_lookup.get(item, []) for item in preds_test_items]
         )
-        self._context_lookup = {
-            key if isinstance(key, tuple) else (key,): value
-            for key, value in context_lookup.items()
-        }
 
-    @validate_arguments
-    def postfilter(
-        self,
-        context: Optional[tuple] = None,
-        user_ids: Optional[list] = None,
-        K: Optional[PositiveInt] = None,
-    ):
-        """
-        Applies post-filtering to the predictions based on context or user IDs
-        (or both), and an optional top-K cutoff.
+        valid_rows = np.array(
+            [
+                any(ctx in test_item_contexts for ctx in item_contexts)
+                for item_contexts, test_item_contexts in zip(
+                    items_contexts, test_items_contexts
+                )
+            ]
+        )
+        filtered_preds_df = preds_df[valid_rows]
 
-        Args:
-            `context`: A tuple representing the context for filtering (if train data was provided during initialization).
-            `user_ids`: A list of user IDs to filter.
-            `K`: Number of top predictions per user to retain. If not specified, all predictions are included.
-
-        Returns:
-            `pandas.DataFrame`: A DataFrame containing the filtered predictions based on the specified criteria.
-        """
-        if context is not None and self._context_lookup is not None:
-            filtered_item_ids = self._context_lookup.get(context)
-
-            if not filtered_item_ids:
-                return pd.DataFrame(columns=self._preds_df.columns)
-
-            ctx_mask = np.isin(self._item_ids, list(filtered_item_ids))
-        else:
-            ctx_mask = np.ones(self._num_preds, dtype=bool)
-
-        if user_ids is not None:
-            user_mask = np.isin(self._user_ids, user_ids)
-        else:
-            user_ids = np.ones(self._num_preds, dtype=bool)
-
-        filtered_df = self._preds_df[user_mask & ctx_mask]
-
-        if K is not None:
-            filtered_df = (
-                filtered_df.groupby(self._user_preds_col_name)
-                .head(K)
-                .reset_index(drop=True)
-            )
-
-        return filtered_df
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        filtered_preds_df.to_csv(
+            output_path,
+            index=False,
+            sep=self.preds_sep,
+            compression=self.preds_compression,
+        )
