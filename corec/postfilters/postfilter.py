@@ -72,7 +72,7 @@ class PostFilter(BaseModel):
         extra = "forbid"
 
     def model_post_init(self, _):
-        if not len(self.dataset_ctx_idxs):
+        if isinstance(self.dataset_ctx_idxs, list) and not len(self.dataset_ctx_idxs):
             raise ValueError("Context indexes list cannot be empty.")
 
         self._context_lookup = get_context_lookup_dict(

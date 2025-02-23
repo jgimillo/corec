@@ -61,11 +61,10 @@ def get_context_lookup_dict(
     Returns:
         `dict`: A dictionary where keys are item IDs as strings and values are sets of associated contexts.
     """
-    if not len(dataset_ctx_idxs):
-        raise ValueError("Context indexes list cannot be empty.")
-
     if isinstance(dataset_ctx_idxs, int):
         dataset_ctx_idxs = [dataset_ctx_idxs]
+    elif not len(dataset_ctx_idxs):
+        raise ValueError("Context indexes list cannot be empty.")
 
     item_ctx_df = pd.read_csv(
         train_path,
