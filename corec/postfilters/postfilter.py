@@ -105,10 +105,10 @@ class PostFilter(BaseModel):
         preds_test_items = preds_df.iloc[:, self.preds_test_item_idx].astype(str).values
 
         items_contexts = np.array(
-            [self._context_lookup.get(item, []) for item in preds_items]
+            [self._context_lookup.get(item, set()) for item in preds_items]
         )
         test_items_contexts = np.array(
-            [self._context_lookup.get(item, []) for item in preds_test_items]
+            [self._context_lookup.get(item, set()) for item in preds_test_items]
         )
 
         valid_rows = np.array(

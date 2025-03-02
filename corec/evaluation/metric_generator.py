@@ -144,7 +144,7 @@ class MetricGenerator(BaseModel):
         )
 
     def _get_item_context(self, item_id: str):
-        return next(iter(self._context_lookup.get(item_id, [])), [])
+        return next(iter(self._context_lookup.get(item_id, set())), set())
 
     def _compute_ctx_sat_metric(
         self,

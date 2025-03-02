@@ -86,7 +86,6 @@ class ElliotRec(BaseRec):
         Returns:
             `Tuple`: A tuple containing the path to the temporary configuration file and the path for the predictions output directory.
         """
-
         config = deepcopy(YAML_TEMPLATE)
         output_dir = Path(self.elliot_work_dir)
 
@@ -217,10 +216,10 @@ class ElliotRec(BaseRec):
         the predictions files. It also removes temporary files after the experiment.
 
         Args:
-            models_config: Configuration for the models used in the experiment (https://elliot.readthedocs.io/en/latest/guide/recommenders.html).
-            K: Number of recommendations to predict. If None, the number of distinct items in the train data will be used.
-            clean_elliot_work_dir: Whether to remove the Elliot work directory after the experiment.
-            clean_temp_dataset_files: Whether to remove the temporary dataset files after the experiment.
+            `models_config`: Configuration for the models used in the experiment (https://elliot.readthedocs.io/en/latest/guide/recommenders.html).
+            `K`: Number of recommendations to predict. If None, the number of distinct items in the train data will be used.
+            `clean_elliot_work_dir`: Whether to remove the Elliot work directory after the experiment.
+            `clean_temp_dataset_files`: Whether to remove the temporary dataset files after the experiment.
         """
         try:
             temp_config_file, messy_preds_dir = self._prepare_temp_config_file(
