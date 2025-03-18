@@ -6,7 +6,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import Field, NonNegativeInt, PositiveInt, PrivateAttr, validate_arguments
+from pydantic import Field, NonNegativeInt, PositiveInt, PrivateAttr, validate_call
 
 from ..base_rec import BaseRec
 
@@ -86,7 +86,7 @@ class HeuristicRec(BaseRec, ABC):
     ):
         pass
 
-    @validate_arguments
+    @validate_call
     def compute_predictions(self, output_path: str, K: Optional[PositiveInt] = None):
         """
         Compute heuristic predictions for the test dataset and save the results to a specified output file.

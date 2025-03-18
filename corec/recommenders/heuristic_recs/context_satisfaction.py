@@ -8,7 +8,7 @@ from pydantic import (
     NonNegativeInt,
     PositiveInt,
     PrivateAttr,
-    validate_arguments,
+    validate_call,
 )
 
 from ...utils import context_satisfaction
@@ -42,7 +42,7 @@ class ContextSatisfactionRec(HeuristicRec):
             :, [1] + list(range(3, self._data_ncols))
         ].drop_duplicates()
 
-    @validate_arguments
+    @validate_call
     def get_top_k(
         self,
         context: List[int],

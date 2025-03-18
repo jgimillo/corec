@@ -2,7 +2,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import FilePath, NonNegativeFloat, NonNegativeInt, validate_arguments
+from pydantic import FilePath, NonNegativeFloat, NonNegativeInt, validate_call
 
 
 def context_satisfaction(
@@ -34,7 +34,7 @@ def context_satisfaction(
     return intersect / (union + alpha * diff / np.sum(ctx_rec))
 
 
-@validate_arguments
+@validate_call
 def get_context_lookup_dict(
     train_path: FilePath,
     dataset_ctx_idxs: Union[List[NonNegativeInt], NonNegativeInt],

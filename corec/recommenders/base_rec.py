@@ -74,6 +74,25 @@ class BaseRec(BaseModel):
     def model_post_init(self, __context):
         super().model_post_init(__context)
 
+        # Dataset features setup
+        if not self.preds_user_col_name or not self.preds_item_col_name:
+            test_df = pd.read_csv(
+                self.test_path,
+                sep=self.dataset_sep,
+                compression=self.dataset_compression,
+            )
+
+            self.preds_user_col_name = (
+                self.preds_user_col_name or test_df.columns[self.dataset_user_idx]
+            )
+            self.preds_item_col_name = (
+                self.preds_item_col_name or test_df.columns[self.dataset_item_idx]
+            )
+
+        self.preds_test_item_col_name = (
+            self.preds_test_item_col_name or f"test_{self.preds_item_col_name}"
+        )
+
         # Logger setup
         if self.logs_path is None:
             self._logger = logging.getLogger(__name__)
@@ -93,22 +112,3 @@ class BaseRec(BaseModel):
             formatter = logging.Formatter("%(asctime)s: %(levelname)-.1s %(message)s")
             file_handler.setFormatter(formatter)
             self._logger.addHandler(file_handler)
-
-        # Dataset features setup
-        if not self.preds_user_col_name or not self.preds_item_col_name:
-            test_df = pd.read_csv(
-                self.test_path,
-                sep=self.dataset_sep,
-                compression=self.dataset_compression,
-            )
-
-            self.preds_user_col_name = (
-                self.preds_user_col_name or test_df.columns[self.dataset_user_idx]
-            )
-            self.preds_item_col_name = (
-                self.preds_item_col_name or test_df.columns[self.dataset_item_idx]
-            )
-
-        self.preds_test_item_col_name = (
-            self.preds_test_item_col_name or f"test_{self.preds_item_col_name}"
-        )

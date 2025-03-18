@@ -15,7 +15,7 @@ from pydantic import (
     FilePath,
     PositiveInt,
     PrivateAttr,
-    validate_arguments,
+    validate_call,
 )
 
 from ..base_rec import BaseRec
@@ -201,7 +201,7 @@ class ElliotRec(BaseRec):
             for file in files:
                 file.unlink()
 
-    @validate_arguments
+    @validate_call
     def run_elliot_experiment(
         self,
         models_config: Dict[str, Dict],
@@ -239,7 +239,7 @@ class ElliotRec(BaseRec):
             if clean_temp_dataset_files:
                 self.clean_temp_dataset_files()
 
-    @validate_arguments
+    @validate_call
     def clean_temp_dataset_files(self):
         """Cleans up temporary dataset files created for the experiments runs."""
         for temp_file in [

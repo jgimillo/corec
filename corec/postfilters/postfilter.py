@@ -9,7 +9,7 @@ from pydantic import (
     FilePath,
     NonNegativeInt,
     PrivateAttr,
-    validate_arguments,
+    validate_call,
 )
 
 from ..utils import get_context_lookup_dict
@@ -84,7 +84,7 @@ class PostFilter(BaseModel):
             dataset_compression=self.dataset_compression,
         )
 
-    @validate_arguments
+    @validate_call
     def postfilter(self, preds_path: FilePath, output_path: str):
         """
         Loads a predictions file, filters out rows where the predicted item and the

@@ -10,7 +10,7 @@ from pydantic import (
     FilePath,
     NonNegativeInt,
     PositiveInt,
-    validate_arguments,
+    validate_call,
 )
 from ranx import Run, fuse
 
@@ -74,7 +74,7 @@ class RunGenerator(BaseModel):
             for _, row in (group if K is None else group.head(K)).iterrows()
         }
 
-    @validate_arguments
+    @validate_call
     def compute_run(
         self,
         predictions_path: FilePath,

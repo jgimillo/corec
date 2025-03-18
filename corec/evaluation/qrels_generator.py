@@ -7,7 +7,7 @@ from pydantic import (
     FilePath,
     NonNegativeInt,
     PrivateAttr,
-    validate_arguments,
+    validate_call,
 )
 from ranx import Qrels
 
@@ -53,7 +53,7 @@ class QrelsGenerator(BaseModel):
     class Config:
         extra = "forbid"
 
-    @validate_arguments
+    @validate_call
     def compute_qrels(
         self, rating_thr: NonNegativeInt, output_path: Optional[str] = None
     ):

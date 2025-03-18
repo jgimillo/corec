@@ -1,7 +1,7 @@
 from typing import List, Optional, Union
 
 import numpy as np
-from pydantic import PositiveInt, validate_arguments
+from pydantic import PositiveInt, validate_call
 
 from .heuristic_rec import HeuristicRec
 
@@ -16,7 +16,7 @@ class ContextRandomRec(HeuristicRec):
     class Config:
         extra = "forbid"
 
-    @validate_arguments
+    @validate_call
     def get_top_k(
         self,
         context: List[int],

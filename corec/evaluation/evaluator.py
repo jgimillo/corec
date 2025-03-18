@@ -9,7 +9,7 @@ from pydantic import (
     NonNegativeInt,
     PositiveInt,
     PrivateAttr,
-    validate_arguments,
+    validate_call,
 )
 from ranx import Run
 
@@ -181,7 +181,7 @@ class Evaluator(BaseModel):
 
         return self.runs_path_template.replace("{run}", run_name)
 
-    @validate_arguments
+    @validate_call
     def compute_qrels(self, output_path: Optional[str] = None):
         """
         Computes the test data Qrels using the class rating threshold and
@@ -208,7 +208,7 @@ class Evaluator(BaseModel):
             dataset_compression=self.dataset_compression,
         )
 
-    @validate_arguments
+    @validate_call
     def compute_run_metrics(
         self,
         model_name: str,
@@ -257,7 +257,7 @@ class Evaluator(BaseModel):
                 cutoffs=self.cutoffs,
             )
 
-    @validate_arguments
+    @validate_call
     def compute_fuse_metrics(
         self,
         run_names: List[str] = [],
