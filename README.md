@@ -28,20 +28,20 @@ The **recommendation module** supports **[Elliot](https://elliot.readthedocs.io/
 
 It is important to note that **Corec** is part of a final degree project, and its goal is to provide a solid framework structure that allows users to easily extend the library with their own recommenders and metrics, making it a flexible foundation for further development.
 
-## Corec Modules List
+## Corec Modules List :mag:
 
 Below is a complete list of the currently available classes in Corec. In the repository code, you can find the specific descriptions of the attributes, methods, and behavior of each module.
 
-|**‣ Integrated recommenders** |**‣ Heuristic recommenders**|**‣ Evaluation**   |**‣ Postfiltering**    |
-|:-----------------------------|:---------------------------|:------------------|-----------------------|                    
-| ElliotRec                    | ContextPopRec              | QrelsGenerator    | Postfilter            |
-| RecBoleRec                   | ContextRandomRec           | RunGenerator      |                       |
-|                              | ContextSatisfactionRec     | MetricGenerator   |                       |
-|                              |                            | Evaluator         |                       |
+|**Integrated recommenders** |**Heuristic recommenders**|**Evaluation**     |**Postfiltering**    |
+|:---------------------------|:-------------------------|:------------------|---------------------|                    
+| `ElliotRec`                | `ContextPopRec`          | `QrelsGenerator`  | `Postfilter`        |
+| `RecBoleRec`               | `ContextRandomRec`       | `RunGenerator`    |                     |
+|                            | `ContextSatisfactionRec` | `MetricGenerator` |                     |
+|                            |                          | `Evaluator`       |                     |
 
-> **Note:** In case you want to implement your own recommender, you might find it helpful to use `BaseRec` as your parent class.
+> :eyes:: In case you want to implement your own recommender, you might find it helpful to use `BaseRec` as your parent class.
 
-## Installation
+## Installation :computer:
 
 To install Corec, simply use `pip`:
 
@@ -55,9 +55,9 @@ If you want to use the evaluation module, then run:
 pip install corec[evaluator]
 ```
 
-> **Note:** If you plan to use any integrated recommender, please remember to download the necessary extra packages.
+> :eyes:: If you plan to use any integrated recommender, please remember to download the necessary extra packages.
 
-## Data Structure
+## Data Structure :file_folder:
 
 ### Dataset Input Format
 Corec assumes the following structure for the input datasets:
@@ -72,8 +72,6 @@ Each dataset should have the following columns:
 - **Rating ID**: A column representing the rating given by the user (usually a `float`).
 - **Context Columns**: Additional columns representing the context for each recommendation (all `int`).
 
-Example:
-
 | User ID | Item ID | Rating    | Context 1 | Context 2 | Context 3 | ... |
 |---------|---------|-----------|-----------|-----------|-----------|-----|
 | 1       | 101     | 4.5       | 1         | 0         | 1         | ... |
@@ -84,21 +82,20 @@ Example:
 
 The output of the recommendation process is stored in files containing tuples in the following format: (`user ID, item ID, score, query item ID`).
 
->**Note:** The inclusion of the query item ID in the predictions file is intentional, as it serves to indicate the contextual anchor of the recommendation. The current approach assumes that each item in the dataset is associated with a single, fixed context. Therefore, by storing the query item, we can indirectly infer the context in which the recommendation was made. That said, this is a known limitation of the current design (there's room for improvement here). In future iterations, the methodology could be extended and refined to handle more flexible or multi-context scenarios, making it applicable to a wider range of datasets.
+>:warning:: The inclusion of the query item ID in the predictions file is intentional, as it serves to indicate the contextual anchor of the recommendation. The current approach assumes that each item in the dataset is associated with a single, fixed context. Therefore, by storing the query item, we can indirectly infer the context in which the recommendation was made. That said, this is a known limitation of the current design (there's room for improvement here). In future iterations, the methodology could be extended and refined to handle more flexible or multi-context scenarios, making it applicable to a wider range of datasets.
 
 ### Metrics Output Format
 
 The evaluation metrics are stored in a CSV file, where each row corresponds to a particular experimental setting. The file includes the following columns:
 
 - **Models** (`str`): The model or combination of models being evaluated.
-- `Fuse norm`: The normalization strategy used during model fusion (if applicable).
-- `Fuse method` – The method applied to combine scores from multiple models (if applicable).
-- `Metric`: The specific evaluation metric (e.g., nDCG, Precision, Recall, etc.).
-- `Cutoff` – The ranking cutoff value (e.g., top-5, top-10).
+- **Fuse norm** (`str`): The normalization strategy used during model fusion (if applicable).
+- **Fuse method** (`str`): The method applied to combine scores from multiple models (if applicable).
+- **Metric** (`str`): The specific evaluation metric (e.g., precision, recall, etc.).
+- **Cutoff** (`int`): The ranking cutoff value (e.g., 5, 10, etc.).
+- **Score** (`float`): The resulting score obtained for the given metric and cutoff.
 
-Score – The resulting score obtained for the given metric and cutoff.
-
-## Usage
+## Usage :bulb:
 
 ### Recommendation Module Examples
 
