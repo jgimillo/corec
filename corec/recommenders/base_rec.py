@@ -1,4 +1,5 @@
 import logging
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
@@ -6,7 +7,7 @@ import pandas as pd
 from pydantic import BaseModel, Field, FilePath, NonNegativeInt, PrivateAttr
 
 
-class BaseRec(BaseModel):
+class BaseRec(BaseModel, ABC):
     """Base class for the `corec` recommender module."""
 
     train_path: Optional[FilePath] = Field(
@@ -112,3 +113,7 @@ class BaseRec(BaseModel):
             formatter = logging.Formatter("%(asctime)s: %(levelname)-.1s %(message)s")
             file_handler.setFormatter(formatter)
             self._logger.addHandler(file_handler)
+
+    @abstractmethod
+    def recommend(self):
+        pass

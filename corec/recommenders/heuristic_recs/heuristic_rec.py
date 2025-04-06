@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from pathlib import Path
@@ -11,7 +11,7 @@ from pydantic import Field, NonNegativeInt, PositiveInt, PrivateAttr, validate_c
 from ..base_rec import BaseRec
 
 
-class HeuristicRec(BaseRec, ABC):
+class HeuristicRec(BaseRec):
     """
     Parent class for context-based recommenders utilizing heuristics.
 
@@ -87,7 +87,7 @@ class HeuristicRec(BaseRec, ABC):
         pass
 
     @validate_call
-    def compute_predictions(self, output_path: str, K: Optional[PositiveInt] = None):
+    def recommend(self, output_path: str, K: Optional[PositiveInt] = None):
         """
         Compute heuristic predictions for the test dataset and save the results to a specified output file.
 

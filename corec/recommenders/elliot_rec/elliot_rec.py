@@ -202,7 +202,7 @@ class ElliotRec(BaseRec):
                 file.unlink()
 
     @validate_call
-    def run_elliot_experiment(
+    def recommend(
         self,
         models_config: Dict[str, Dict],
         K: Optional[PositiveInt] = None,
