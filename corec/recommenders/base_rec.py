@@ -4,17 +4,24 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from pydantic import BaseModel, Field, FilePath, NonNegativeInt, PrivateAttr
+from pydantic import (
+    BaseModel,
+    Field,
+    FilePath,
+    NonNegativeInt,
+    PositiveInt,
+    PrivateAttr,
+)
 
 
 class BaseRec(BaseModel, ABC):
     """Base class for the `corec` recommender module."""
 
-    train_path: Optional[FilePath] = Field(
+    train_path: FilePath = Field(
         ...,
         description="Path to the training data.",
     )
-    test_path: str = Field(
+    test_path: FilePath = Field(
         ...,
         description="Path to the test data.",
     )
@@ -115,5 +122,5 @@ class BaseRec(BaseModel, ABC):
             self._logger.addHandler(file_handler)
 
     @abstractmethod
-    def recommend(self):
+    def recommend(self, K: Optional[PositiveInt] = None):
         pass
