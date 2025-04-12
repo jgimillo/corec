@@ -69,7 +69,7 @@ Corec assumes the following structure for the input datasets:
 Each dataset should have the following columns:
 - **User ID**: A column representing the unique identifier for each user (either `str` or `int`).
 - **Item ID**: A column representing the unique identifier for each item (either `str` or `int`).
-- **Rating ID**: A column representing the rating given by the user (usually a `float`).
+- **Rating**: A column representing the rating given by the user (usually a `float`).
 - **Context Columns**: Additional columns representing the context for each recommendation (all `int`).
 
 | User ID | Item ID | Rating    | Context 1 | Context 2 | Context 3 | ... |
