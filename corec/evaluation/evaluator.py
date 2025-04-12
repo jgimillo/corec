@@ -24,7 +24,7 @@ class Evaluator(BaseModel):
     MetricGenerator for streamlined evaluation.
     """
 
-    test_path: str = Field(
+    test_path: FilePath = Field(
         ...,
         description="Path to the test data.",
     )
