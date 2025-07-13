@@ -28,6 +28,10 @@ The **recommendation module** supports **[Elliot](https://elliot.readthedocs.io/
 
 It is important to note that **Corec** is part of a final degree project, and its goal is to provide a solid framework structure that allows users to easily extend the library with their own recommenders and metrics, making it a flexible foundation for further development.
 
+<p align="center" width="100%">
+    <img width="75%" src="https://github.com/jgimillo/corec/blob/main/img/corec_architecture.png">
+</p>
+
 ## Corec Modules List :mag:
 
 Below is a complete list of the currently available classes in Corec. In the repository code, you can find the specific descriptions of the attributes, methods, and behavior of each module.
