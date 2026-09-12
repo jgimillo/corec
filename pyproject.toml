@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "corec"
-version = "1.1.5"
+version = "1.1.6"
 description = "A Context-Aware Recommendation Framework for Python"
 authors = [
     {name = "Jaime Gimillo", email = "jaimegimillo@gmail.com"}
@@ -26,6 +26,9 @@ dependencies = [
 [project.optional-dependencies]
 recommender = []
 evaluator = ["ranx==0.3.20"]
+
+[tool.setuptools.packages.find]
+include = ["corec*"]
 
 [tool.ruff]
 select = ["I", "E", "F", "W"]
